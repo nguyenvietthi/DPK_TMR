@@ -107,14 +107,17 @@ top_module = "rt_qos_controller"
 for module in module_split[:-1]:
   internal_signal = find_words_after("wire", module)
   output_signal = find_words_after("output", module)
-  for line in module.split("\n")[0:-1]:
-      if(first_word(line) == "module"):
-        f2.write(add_port(line, output_signal) + "\n")
-      elif (first_word(line) == "input"):
-        f2.write(line + '\n')      
-      else:
-        for i in range(3):
-          f2.write(replace_tmr(line, output_signal + internal_signal, i) + '\n')
+  if(instances_info(module)[1] == top_module):
+     ...
+  else:
+    for line in module.split("\n")[0:-1]:
+        if(first_word(line) == "module"):
+          f2.write(add_port(line, output_signal) + "\n")
+        elif (first_word(line) == "input"):
+          f2.write(line + '\n')      
+        else:
+          for i in range(3):
+            f2.write(replace_tmr(line, output_signal + internal_signal, i) + '\n')
 
   f2.write("endmodule\n\n")
 
