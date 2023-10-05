@@ -1,6 +1,6 @@
 import re
 filename = r"./test.sv"
-inst_voter = "dti_voter voter_inst (.in0(b_0), .in1(b_1), .in2(b_2), out(b));"
+inst_voter = "dti_voter voter_inst (.in0(b_0), .in1(b_1), .in2(b_2), .out(b));"
 
 def find_q_port(text):
   pattern = re.compile(r'\.Q\((.*?)\)')
@@ -71,30 +71,83 @@ def replace_whole_word(original_string, target_word, replacement):
 
 def replace_tmr(text, signal_list, index):
   inst_info = instances_info(text)
-  # print(text)
+#   print(signal_list)
   try:
-    if (first_word(line) != "assign" and first_word(line) != "output"):
+    if (first_word(line) != "assign" and first_word(line) != "output"): 
       replace_txt = text.replace(inst_info[1], add_suffix(inst_info[1], index))
     else:
        replace_txt = text
     for signal in signal_list:
-      replace_txt = replace_txt.replace(signal, add_suffix(signal, index))
+        if(len(signal.split(" ")) > 1):
+            replace_txt = replace_txt.replace(signal.split(" ")[1], add_suffix(signal.split(" ")[1], index))
+        else:
+            replace_txt = replace_txt.replace(signal.split(" ")[0], add_suffix(signal.split(" ")[0], index))
     return replace_txt
   except:
      return ""
   
 
 def add_port(text, output_port):
+  print(output_port)
   for port in output_port:
     replace_txt = ''
-    for i in range(3):
-       replace_txt = replace_txt + ", " + add_suffix(port, i)
-    
-    pattern = r'\b' + re.escape(port) + r'\b'
-    text = re.sub(pattern, replace_txt, text)      
+    if(len(port.split(" ")) > 1):
+        for i in range(3):
+            replace_txt = replace_txt + ", " + add_suffix(port.split(" ")[1], i)  
+        pattern = r'\b' + re.escape(port.split(" ")[1]) + r'\b'
+    else:
+        for i in range(3):
+            replace_txt = replace_txt + ", " + add_suffix(port, i) 
+        pattern = r'\b' + re.escape(port) + r'\b'
+
+    text = re.sub(pattern, replace_txt[1:], text)   
   return text
 
+def modify_inst(text, signal_list):
+  port_inst = text.split(", .")
+  out_txt = port_inst[0]
+  for port in port_inst:
+    port_tmp = port.replace("(", " ").replace(".", "").replace(")", "").replace(";", "").split(" ")
+    if(len(port_tmp) > 1):
+      check = 0
+      for signal in signal_list:
+        if port_tmp[1] in signal:
+          check = 1
+          break
+      if check:
+        for i in range(3):
+            out_txt = out_txt + ", ." + add_suffix(port_tmp[0], i) + "(" + add_suffix(port_tmp[1], i) + ")"
+      else:
+        out_txt = out_txt + ", ." + port_tmp[0] + "(" + port_tmp[1] + ")"
+  out_txt = out_txt + ");\n"
+  # print(out_txt)
+  return out_txt
 
+def insert_voter(output_list): 
+    # print(output_list)
+    output_dict = dict()
+    voter_index = 0
+    for output in output_list:
+        try:
+            # print(output.split(" ")[1])
+            width = int(output.split(" ")[0].replace("[", "").replace("]", "").split(":")[0])
+            for i in range(width + 1):
+                f2.write(inst_voter
+                .replace("b_0", add_suffix(output.split(" ")[1] + "[", 0) + str(i) + "]")
+                .replace("b_1", add_suffix(output.split(" ")[1] + "[", 1) + str(i) + "]")
+                .replace("b_2", add_suffix(output.split(" ")[1] + "[", 2) + str(i) + "]")
+                .replace("b", output.split(" ")[1] + "[" + str(i) + "]")
+                .replace("voter_inst", "voter_" + str(voter_index)) + "\n")
+                voter_index = voter_index + 1
+        except:
+            f2.write(inst_voter
+            .replace("b_0", add_suffix(output.split(" ")[0], 0))
+            .replace("b_1", add_suffix(output.split(" ")[0], 1))
+            .replace("b_2", add_suffix(output.split(" ")[0], 2))
+            .replace("b", output.split(" ")[0])
+            .replace("voter_inst", "voter_" + str(voter_index)) + "\n")
+            voter_index = voter_index + 1
+                
 f = open("test.sv", "r")
 verilog_content = f.read()
 
@@ -117,7 +170,7 @@ for module in module_split[:-1]:
   output_signal = find_words_after("output", module)
   if(instances_info(module)[1] == top_module):
     for line in module.split("\n")[0:-1]:
-      print("sadkaskdsakdsakdask")
+      # print(line)
       if(first_word(line) == "module" or first_word(line) == "input"or first_word(line) == "output"):
         f2.write(line + '\n') 
       elif (first_word(line) == "wire"):
@@ -126,6 +179,14 @@ for module in module_split[:-1]:
         for port in output_signal:
           for i in range(3):
             f2.write("wire " + port + "_" + str(i) + ";\n")
+      elif (line[:7] == "dti_12g"):
+          for i in range(3):
+            f2.write(replace_tmr(line, output_signal + internal_signal, i) + '\n')
+      elif (line != ""):
+        f2.write(modify_inst(line, internal_signal + output_signal))
+    
+    insert_voter(output_signal)
+    f2.write("endmodule\n\n")
 
   else:
     for line in module.split("\n")[0:-1]:
@@ -137,23 +198,6 @@ for module in module_split[:-1]:
           for i in range(3):
             f2.write(replace_tmr(line, output_signal + internal_signal, i) + '\n')
     f2.write("endmodule\n\n")
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
