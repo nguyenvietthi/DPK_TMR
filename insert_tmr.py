@@ -60,7 +60,15 @@ def find_words_after(key_word,text):
             words_after_output.extend(words)
     
     return words_after_output
-    
+
+
+# new_string = replace_whole_word(my_string, "old", "new")
+
+def replace_whole_word(original_string, target_word, replacement):
+    pattern = r'\b' + re.escape(target_word) + r'\b'
+    new_string = re.sub(pattern, replacement, original_string)
+    return new_string
+
 def replace_tmr(text, signal_list, index):
   inst_info = instances_info(text)
   # print(text)
@@ -108,7 +116,17 @@ for module in module_split[:-1]:
   internal_signal = find_words_after("wire", module)
   output_signal = find_words_after("output", module)
   if(instances_info(module)[1] == top_module):
-     ...
+    for line in module.split("\n")[0:-1]:
+      print("sadkaskdsakdsakdask")
+      if(first_word(line) == "module" or first_word(line) == "input"or first_word(line) == "output"):
+        f2.write(line + '\n') 
+      elif (first_word(line) == "wire"):
+        for i in range(3):
+          f2.write(replace_tmr(line, output_signal + internal_signal, i) + '\n')
+        for port in output_signal:
+          for i in range(3):
+            f2.write("wire " + port + "_" + str(i) + ";\n")
+
   else:
     for line in module.split("\n")[0:-1]:
         if(first_word(line) == "module"):
@@ -118,8 +136,7 @@ for module in module_split[:-1]:
         else:
           for i in range(3):
             f2.write(replace_tmr(line, output_signal + internal_signal, i) + '\n')
-
-  f2.write("endmodule\n\n")
+    f2.write("endmodule\n\n")
 
 
 
