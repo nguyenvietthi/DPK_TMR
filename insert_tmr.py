@@ -73,15 +73,18 @@ def replace_tmr(text, signal_list, index):
   inst_info = instances_info(text)
 #   print(signal_list)
   try:
-    if (first_word(line) != "assign" and first_word(line) != "output"): 
+    if (first_word(line) != "assign" and first_word(line) != "output" and first_word(line) != "wire"): 
       replace_txt = text.replace(inst_info[1], add_suffix(inst_info[1], index))
+    elif (first_word(line) == "output"):
+       replace_txt = text
     else:
        replace_txt = text
+    signal_list = sorted(signal_list, key=lambda x: len(x), reverse=True)
     for signal in signal_list:
-        if(len(signal.split(" ")) > 1):
+        if(len(signal.split(" ")) == 2):
             replace_txt = replace_txt.replace(signal.split(" ")[1], add_suffix(signal.split(" ")[1], index))
         else:
-            replace_txt = replace_txt.replace(signal.split(" ")[0], add_suffix(signal.split(" ")[0], index))
+            replace_txt = replace_txt.replace(signal, add_suffix(signal, index))
     return replace_txt
   except:
      return ""
@@ -89,6 +92,7 @@ def replace_tmr(text, signal_list, index):
 
 def add_port(text, output_port):
   print(output_port)
+  output_port = sorted(output_port, key=lambda x: len(x), reverse=True)
   for port in output_port:
     replace_txt = ''
     if(len(port.split(" ")) > 1):
@@ -171,11 +175,11 @@ for module in module_split[:-1]:
   if(instances_info(module)[1] == top_module):
     for line in module.split("\n")[0:-1]:
       # print(line)
-      if(first_word(line) == "module" or first_word(line) == "input"or first_word(line) == "output"):
+      if(first_word(line) == "module" or first_word(line) == "input" or first_word(line) == "output"):
         f2.write(line + '\n') 
       elif (first_word(line) == "wire"):
         for i in range(3):
-          f2.write(replace_tmr(line, output_signal + internal_signal, i) + '\n')
+          f2.write(replace_tmr(line, internal_signal, i) + '\n')
         for port in output_signal:
           for i in range(3):
             f2.write("wire " + port + "_" + str(i) + ";\n")
