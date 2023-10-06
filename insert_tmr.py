@@ -386,8 +386,6 @@ def FGLTMR():
         try:
           f.write(line + "\n")
           if(mark_voter == 0):
-            # print("heheheh")
-            # print(q_port_list)
             f.write("wire " + ", ".join([add_suffix(port.replace(":0", ""), 0) for port in q_port_list]) 
                     + ", " +", ".join([add_suffix(port.replace(":0", ""), 1) for port in q_port_list])
                     + ", " +", ".join([add_suffix(port.replace(":0", ""), 2) for port in q_port_list])
