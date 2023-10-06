@@ -62,36 +62,45 @@ def find_words_after(key_word,text):
     return words_after_output
 
 
-# new_string = replace_whole_word(my_string, "old", "new")
+
 
 def replace_whole_word(original_string, target_word, replacement):
-    pattern = r'\b' + re.escape(target_word) + r'\b'
+    pattern = r'\b' + target_word + r'\b'
     new_string = re.sub(pattern, replacement, original_string)
     return new_string
 
+# new_string = replace_whole_word("wire \current_state[0] , \next_state[0] , n2_0, n1_0, n3_0, n4_0;", "current_state", "current_state[1]")
+# print("asdasdasd", new_string)
+
 def replace_tmr(text, signal_list, index):
   inst_info = instances_info(text)
-#   print(signal_list)
+  # print(signal_list)
   try:
-    if (first_word(line) != "assign" and first_word(line) != "output" and first_word(line) != "wire"): 
+    if (first_word(text) != "assign" and first_word(text) != "output" and first_word(text) != "wire"): 
       replace_txt = text.replace(inst_info[1], add_suffix(inst_info[1], index))
-    elif (first_word(line) == "output"):
+    elif (first_word(text) == "output"):
        replace_txt = text
     else:
        replace_txt = text
     signal_list = sorted(signal_list, key=lambda x: len(x), reverse=True)
     for signal in signal_list:
+        # print("cccc", signal)
         if(len(signal.split(" ")) == 2):
-            replace_txt = replace_txt.replace(signal.split(" ")[1], add_suffix(signal.split(" ")[1], index))
+            # print(signal.split(" ")[1], "11111")
+            replace_txt = replace_whole_word(replace_txt, signal.split(" ")[1], add_suffix(signal.split(" ")[1], index))
+        elif(signal[0] == '\\'):
+           replace_txt = replace_txt.replace(signal, add_suffix(signal, index))
         else:
-            replace_txt = replace_txt.replace(signal, add_suffix(signal, index))
+            replace_txt = replace_whole_word(replace_txt, signal, add_suffix(signal, index))
+            # print(signal,  add_suffix(signal, index), "11111w2222", replace_txt)
+    # print("alllooo", replace_txt)
     return replace_txt
   except:
      return ""
   
 
 def add_port(text, output_port):
-  print(output_port)
+  # print(output_port)
   output_port = sorted(output_port, key=lambda x: len(x), reverse=True)
   for port in output_port:
     replace_txt = ''
@@ -127,7 +136,7 @@ def modify_inst(text, signal_list):
   # print(out_txt)
   return out_txt
 
-def insert_voter(output_list): 
+def insert_voter(output_list, f, index): 
     # print(output_list)
     output_dict = dict()
     voter_index = 0
@@ -136,20 +145,20 @@ def insert_voter(output_list):
             # print(output.split(" ")[1])
             width = int(output.split(" ")[0].replace("[", "").replace("]", "").split(":")[0])
             for i in range(width + 1):
-                f2.write(inst_voter
+                f.write(inst_voter
                 .replace("b_0", add_suffix(output.split(" ")[1] + "[", 0) + str(i) + "]")
                 .replace("b_1", add_suffix(output.split(" ")[1] + "[", 1) + str(i) + "]")
                 .replace("b_2", add_suffix(output.split(" ")[1] + "[", 2) + str(i) + "]")
-                .replace("b", output.split(" ")[1] + "[" + str(i) + "]")
-                .replace("voter_inst", "voter_" + str(voter_index)) + "\n")
+                .replace("b", output.split(" ")[1] + index + "[" + str(i) + "]")
+                .replace("voter_inst", "voter_" + str(voter_index)+ index) + "\n")
                 voter_index = voter_index + 1
         except:
-            f2.write(inst_voter
+            f.write(inst_voter
             .replace("b_0", add_suffix(output.split(" ")[0], 0))
             .replace("b_1", add_suffix(output.split(" ")[0], 1))
             .replace("b_2", add_suffix(output.split(" ")[0], 2))
-            .replace("b", output.split(" ")[0])
-            .replace("voter_inst", "voter_" + str(voter_index)) + "\n")
+            .replace("b", output.split(" ")[0] + index)
+            .replace("voter_inst", "voter_" + str(voter_index) + index) + "\n")
             voter_index = voter_index + 1
                 
 f = open("test.sv", "r")
@@ -163,82 +172,92 @@ port_split = verilog_content.split("\n")
 
 module_split = verilog_content.split("endmodule")
 
-
-f2 = open("aaa.sv", "w")
-
-
+f2 = open("rt_qos_controller_netlist_cgtmr.sv", "w")
+f3 = open("rt_qos_controller_netlist_fgdtmr.sv", "w")
 top_module = "rt_qos_controller"
 
-for module in module_split[:-1]:
-  internal_signal = find_words_after("wire", module)
-  output_signal = find_words_after("output", module)
-  if(instances_info(module)[1] == top_module):
-    for line in module.split("\n")[0:-1]:
-      # print(line)
-      if(first_word(line) == "module" or first_word(line) == "input" or first_word(line) == "output"):
-        f2.write(line + '\n') 
-      elif (first_word(line) == "wire"):
-        for i in range(3):
-          f2.write(replace_tmr(line, internal_signal, i) + '\n')
-        for port in output_signal:
-          for i in range(3):
-            f2.write("wire " + port + "_" + str(i) + ";\n")
-      elif (line[:7] == "dti_12g"):
-          for i in range(3):
-            f2.write(replace_tmr(line, output_signal + internal_signal, i) + '\n')
-      elif (line != ""):
-        f2.write(modify_inst(line, internal_signal + output_signal))
-    
-    insert_voter(output_signal)
-    f2.write("endmodule\n\n")
-
-  else:
-    for line in module.split("\n")[0:-1]:
-        if(first_word(line) == "module"):
-          f2.write(add_port(line, output_signal) + "\n")
-        elif (first_word(line) == "input"):
-          f2.write(line + '\n')      
-        else:
-          for i in range(3):
-            f2.write(replace_tmr(line, output_signal + internal_signal, i) + '\n')
-    f2.write("endmodule\n\n")
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 def CGTMR():
-  f = open("out.sv", "w")
+  for module in module_split[:-1]:
+    internal_signal = find_words_after("wire", module)
+    output_signal = find_words_after("output", module)
+    if(instances_info(module)[1] == top_module):
+      for line in module.split("\n")[0:-1]:
+        # print(line)
+        if(first_word(line) == "module" or first_word(line) == "input" or first_word(line) == "output"):
+          f2.write(line + '\n') 
+        elif (first_word(line) == "wire"):
+          for i in range(3):
+            f2.write(replace_tmr(line, internal_signal, i) + '\n')
+          for port in output_signal:
+            for i in range(3):
+              f2.write("wire " + port + "_" + str(i) + ";\n")
+        elif (line[:7] == "dti_12g"):
+            for i in range(3):
+              f2.write(replace_tmr(line, output_signal + internal_signal, i) + '\n')
+        elif (line != ""):
+          f2.write(modify_inst(line, internal_signal + output_signal))
+      
+      insert_voter(output_signal, f2, "")
+      f2.write("endmodule\n\n")
+
+    else:
+      for line in module.split("\n")[0:-1]:
+          if(first_word(line) == "module"):
+            f2.write(add_port(line, output_signal) + "\n")
+          elif (first_word(line) == "input"):
+            f2.write(line + '\n')      
+          else:
+            for i in range(3):
+              f2.write(replace_tmr(line, output_signal + internal_signal, i) + '\n')
+      f2.write("endmodule\n\n")
+  f2.close()
+
+def FGDTMR():
+  for module in module_split[:-1]:
+    internal_signal = find_words_after("wire", module)
+    output_signal = find_words_after("output", module)
+    if(instances_info(module)[1] == top_module):
+      for line in module.split("\n")[0:-1]:
+        # print(line)
+        if(first_word(line) == "module" or first_word(line) == "input" or first_word(line) == "output"):
+          f3.write(line + '\n') 
+        elif (first_word(line) == "wire"):
+          for i in range(3):
+            f3.write(replace_tmr(line, internal_signal, i) + '\n')
+          for port in output_signal:
+            for i in range(3):
+              f3.write("wire " + port + "_" + str(i) + ";\n")
+        elif (line[:7] == "dti_12g"):
+            for i in range(3):
+              f3.write(replace_tmr(line, output_signal + internal_signal, i) + '\n')
+        elif (line != ""):
+          f3.write(modify_inst(line, internal_signal + output_signal))
+      
+      insert_voter(output_signal, f3, "")
+      f3.write("endmodule\n\n")
+
+    else:
+      for line in module.split("\n")[0:-1]:
+          if(first_word(line) == "module"):
+            f3.write(add_port(line, output_signal) + "\n")
+          elif (first_word(line) == "input"):
+            f3.write(line + '\n')      
+          else:
+            for i in range(3):
+              f3.write(replace_tmr(line, output_signal + internal_signal, i) + '\n')
+      for i in range(3):
+        insert_voter(output_signal, f3, "_" + str(i))
+      f3.write("endmodule\n\n")
+  f2.close()
+
+def FGLTMR():
+  f = open("rt_qos_controller_netlist_fgltmr.sv", "w")
   voter_index = 0
   module_index = -1 
   for module in module_split:
     mark_voter = 0
     q_port_list = find_q_port(module)[-1]
-    # print(q_port_list)
+
     # print(module.split("\n")[-1])
     for line in module.split("\n")[:-1]:
       q_port = find_q_port(line)[0]
@@ -259,9 +278,11 @@ def CGTMR():
         try:
           f.write(line + "\n")
           if(mark_voter == 0):
-            f.write("wire " + ", ".join([add_suffix(port, 0) for port in q_port_list]) 
-                    + ", " +", ".join([add_suffix(port, 1) for port in q_port_list])
-                    + ", " +", ".join([add_suffix(port, 2) for port in q_port_list])
+            # print("heheheh")
+            # print(q_port_list)
+            f.write("wire " + ", ".join([add_suffix(port.replace(":0", ""), 0) for port in q_port_list]) 
+                    + ", " +", ".join([add_suffix(port.replace(":0", ""), 1) for port in q_port_list])
+                    + ", " +", ".join([add_suffix(port.replace(":0", ""), 2) for port in q_port_list])
                     + ";\n")
             mark_voter = 1
         except:
@@ -273,3 +294,7 @@ def CGTMR():
 
   f.close()
 
+CGTMR()
+# FGLTMR()
+
+FGDTMR()
