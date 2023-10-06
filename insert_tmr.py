@@ -103,7 +103,7 @@ def replace_tmr(text, signal_list, index):
             # print(signal.split(" ")[1], "11111")
             replace_txt = replace_whole_word(replace_txt, signal.split(" ")[1], add_suffix(signal.split(" ")[1], index))
         elif(signal[0] == '\\'):
-           replace_txt = replace_txt.replace(signal, add_suffix(signal, index))
+           replace_txt = replace_txt.replace(signal, add_suffix(signal, index)+ " ")
         else:
             replace_txt = replace_whole_word(replace_txt, signal, add_suffix(signal, index))
             # print(signal,  add_suffix(signal, index), "11111w2222", replace_txt)
@@ -214,15 +214,13 @@ if args.top:
 if args.option:
     option = args.option
     if(option == "fgltmr"):
-      f = open("rt_qos_controller_netlist_fgltmr.sv", "w")
+      f1 = open("rt_qos_controller_netlist_fgltmr.sv", "w")
     elif (option == "cgtmr"):
       f2 = open("rt_qos_controller_netlist_cgtmr.sv", "w")
     elif (option == "fgdtmr"):
       f3 = open("rt_qos_controller_netlist_fgdtmr.sv", "w")
        
-       
-
-                
+                       
 f = open(verilog_path, "r")
 f_voter = open("dti_voter_netlist.v", "r")
 voter_content = f_voter.read()
@@ -360,7 +358,7 @@ def FGDTMR():
   f3.close()
 
 def FGLTMR():
-  f.write(voter_content)
+  f1.write(voter_content)
   voter_index = 0
   for module in module_split:
     mark_voter = 0
@@ -372,33 +370,36 @@ def FGLTMR():
       if(q_port):
         for i in range(3):
           ins_info = instances_info(line)
-          f.write(line
+          f1.write(line
             .replace(".Q(" + q_port, ".Q(" + add_suffix(q_port, i))
-            .replace(ins_info[1], add_suffix(ins_info[1], i)) + "\n")
-        f.write(inst_voter
+            .replace(ins_info[1], add_suffix(ins_info[1], i))
+            .replace(")", " )") + "\n")
+        f1.write(inst_voter
           .replace("b_0", add_suffix(q_port, 0))
-          .replace("b_1", add_suffix(q_port, 1)).replace("b_2", add_suffix(q_port, 2))
+          .replace("b_1", add_suffix(q_port, 1))
+          .replace("b_2", add_suffix(q_port, 2))
           .replace("b", q_port)
-          .replace("voter_inst", "voter_" + str(voter_index)) + "\n")
+          .replace("voter_inst", "voter_" + str(voter_index))
+          .replace(")", " )") + "\n")
         voter_index = voter_index + 1
 
       elif (first_word(line) == "wire"):
         try:
-          f.write(line + "\n")
+          f1.write(line + "\n")
           if(mark_voter == 0):
-            f.write("wire " + ", ".join([add_suffix(port.replace(":0", ""), 0) for port in q_port_list]) 
-                    + ", " +", ".join([add_suffix(port.replace(":0", ""), 1) for port in q_port_list])
-                    + ", " +", ".join([add_suffix(port.replace(":0", ""), 2) for port in q_port_list])
-                    + ";\n")
+            f1.write(("wire " + ", ".join([add_suffix(port.replace(":0", ""), 0) + " " for port in q_port_list]) 
+                    + ", " +", ".join([add_suffix(port.replace(":0", ""), 1) + " " for port in q_port_list])
+                    + ", " +", ".join([add_suffix(port.replace(":0", ""), 2) + " " for port in q_port_list])
+                    + ";\n").replace(")", " )"))
             mark_voter = 1
         except:
-          f.write(line + "\n")
+          f1.write((line + "\n").replace(")", " )"))
       else:
-        f.write(line + "\n")
+        f1.write((line + "\n").replace(")", " )"))
     if(module != "\n"):
-      f.write("endmodule")
+      f1.write("endmodule")
 
-  f.close()
+  f1.close()
 
 if(option == "fgltmr"):
   FGLTMR()
