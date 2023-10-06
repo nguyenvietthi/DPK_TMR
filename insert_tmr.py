@@ -1,5 +1,6 @@
 import re
-filename = r"./test.sv"
+import argparse
+
 inst_voter = "dti_voter voter_inst (.in0(b_0), .in1(b_1), .in2(b_2), .out(b));"
 
 def remove_first_comment_lines(input_code):
@@ -198,12 +199,33 @@ def q_port_dict(q_port):
     pass
   # print("cccccccccc", q_name_list, q_name_string_wire)
   return q_name_list, q_name_string_wire
-      
+
+parser = argparse.ArgumentParser()
+parser.add_argument("-v", "--verilog_path", help = "Verilog file")
+parser.add_argument("-t", "--top", help = "Top module")
+parser.add_argument("-o", "--option", help = "TMR Options: fgltmr, cgtmr, fgdtmr")
+# Read arguments from command line
+args = parser.parse_args()
+ 
+if args.verilog_path:
+    verilog_path = args.verilog_path
+if args.top:
+    top_module = args.top
+if args.option:
+    option = args.option
+    if(option == "fgltmr"):
+      f = open("rt_qos_controller_netlist_fgltmr.sv", "w")
+    elif (option == "cgtmr"):
+      f2 = open("rt_qos_controller_netlist_cgtmr.sv", "w")
+    elif (option == "fgdtmr"):
+      f3 = open("rt_qos_controller_netlist_fgdtmr.sv", "w")
+       
+       
+
                 
-f = open("test.sv", "r")
+f = open(verilog_path, "r")
 f_voter = open("dti_voter_netlist.v", "r")
 voter_content = f_voter.read()
-
 verilog_content = f.read()
 verilog_content = remove_first_comment_lines(verilog_content)
 
@@ -213,10 +235,7 @@ port_split = verilog_content.split("\n")
 
 module_split = verilog_content.split("endmodule")
 
-f2 = open("rt_qos_controller_netlist_cgtmr.sv", "w")
-f3 = open("rt_qos_controller_netlist_fgdtmr.sv", "w")
-
-top_module = "rt_qos_controller"
+# top_module = "rt_qos_controller"
 
 def CGTMR():
   f2.write(voter_content)
@@ -341,7 +360,6 @@ def FGDTMR():
   f3.close()
 
 def FGLTMR():
-  f = open("rt_qos_controller_netlist_fgltmr.sv", "w")
   f.write(voter_content)
   voter_index = 0
   for module in module_split:
@@ -384,59 +402,9 @@ def FGLTMR():
 
   f.close()
 
-CGTMR()
-FGLTMR()
-FGDTMR()
-
-def remove_first_comment_lines(input_code):
-    lines = input_code.split('\n')
-    comment_found = False
-
-    line_n0 = 0
-
-    for i, line in enumerate(lines):
-        if '//' in line:
-            comment_found = True
-            lines[i] = '' 
-            line_n0 = i
-        elif not line.strip() and comment_found:
-            lines[i] = '' 
-        elif comment_found:
-            break  
-    return '\n'.join(lines)[line_n0 + 2:]
-# Example usage
-input_code = """
-//-----------------------------------------------------------------------------------------------------------
-// Copyright (C) 2023 by Dolphin Technology
-// All right reserved.
-//
-// Copyright Notification
-// No part may be reproduced except as authorized by written permission.
-//
-// Module: rt_qos_controller
-// Company: Dolphin Technology
-// Author: tung
-// Date: 2023/07/11
-//-----------------------------------------------------------------------------------------------------------
-
-module rt_dyn_pri_fsm ( acq_thresh_hi, acq_thresh_lo, clk, reset_n, dyn_pri, 
-        dyn_update );
-  input acq_thresh_hi, acq_thresh_lo, clk, reset_n;
-  output dyn_pri, dyn_update;
-  wire   \current_state[0] , \next_state[0] , n2, n1, n3, n4;
-  assign dyn_pri = \current_state[0] ;
-
-  dti_12g_ffqa01x1 \current_state_reg[0]  ( .D(\next_state[0] ), .CK(clk), 
-        .RN(reset_n), .Q(\current_state[0] ) );
-  dti_12g_ffqa11x1 dyn_update_cld_reg ( .D(n2), .CK(clk), .RN(reset_n), .SN(n1), .Q(dyn_update) );
-  dti_12g_tierailx1 U3 ( .HI(n1) );
-  dti_12g_muxi21xp5 U4 ( .D0(n3), .D1(acq_thresh_lo), .S(\current_state[0] ), 
-        .Z(\next_state[0] ) );
-  dti_12g_nor2xp13 U5 ( .A(n4), .B(\current_state[0] ), .Z(n2) );
-  dti_12g_nor2xp13 U6 ( .A(dyn_update), .B(acq_thresh_hi), .Z(n4) );
-  dti_12g_invxp5 U7 ( .A(acq_thresh_hi), .Z(n3) );
-endmodule
-"""
-
-result_code = remove_first_comment_lines(input_code)
-print(result_code)
+if(option == "fgltmr"):
+  FGLTMR()
+elif (option == "cgtmr"):
+  CGTMR()
+elif (option == "fgdtmr"):
+  FGDTMR()
