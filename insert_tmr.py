@@ -2,6 +2,23 @@ import re
 filename = r"./test.sv"
 inst_voter = "dti_voter voter_inst (.in0(b_0), .in1(b_1), .in2(b_2), .out(b));"
 
+def remove_first_comment_lines(input_code):
+    lines = input_code.split('\n')
+    comment_found = False
+
+    line_n0 = 0
+
+    for i, line in enumerate(lines):
+        if '//' in line:
+            comment_found = True
+            lines[i] = '' 
+            line_n0 = i
+        elif not line.strip() and comment_found:
+            lines[i] = '' 
+        elif comment_found:
+            break  
+    return '\n'.join(lines)[line_n0 + 2:]
+
 def find_q_port(text):
   pattern = re.compile(r'\.Q\((.*?)\)')
   matches = pattern.findall(text)
@@ -17,7 +34,6 @@ def find_q_port(text):
                   max_values[key] = (value, item)
           else:
               max_values[item] = (None, item)
-              print(max_values)
 
   unique_data = []
   for key in max_values:
@@ -60,9 +76,6 @@ def find_words_after(key_word,text):
             words_after_output.extend(words)
     
     return words_after_output
-
-
-
 
 def replace_whole_word(original_string, target_word, replacement):
     pattern = r'\b' + target_word + r'\b'
@@ -160,23 +173,53 @@ def insert_voter(output_list, f, index):
             .replace("b", output.split(" ")[0] + index)
             .replace("voter_inst", "voter_" + str(voter_index) + index) + "\n")
             voter_index = voter_index + 1
+
+def q_port_dict(q_port):
+  q_name_list = dict()
+  q_name_string_wire = []
+  try:
+    for port in q_port:
+      port_str = port.replace("[", " ").replace(":0]", "").split(" ")
+      try:
+        width = int(port_str[1])
+        if(width == 0):
+          q_name_list[port.replace(":0]", "]")] = 0
+          for i in range(3):
+            q_name_string_wire.append(add_suffix(port.replace(":0]", "]"),  str(i) + "_q"))
+        else:
+          q_name_list[port_str[0]] = width + 1
+          for j in range(3):
+             q_name_string_wire.append("[" + str(width) + ":0] " + port_str[0] + "_" + str(j) + "_q")
+      except:
+        q_name_list[port] = 0
+        for i in range(3):
+          q_name_string_wire.append(add_suffix(port, str(i) + "_q"))
+  except:
+    pass
+  # print("cccccccccc", q_name_list, q_name_string_wire)
+  return q_name_list, q_name_string_wire
+      
                 
 f = open("test.sv", "r")
+f_voter = open("dti_voter_netlist.v", "r")
+voter_content = f_voter.read()
+
 verilog_content = f.read()
+verilog_content = remove_first_comment_lines(verilog_content)
 
 verilog_content = re.sub(r'\s+', ' ', verilog_content)
-verilog_content = verilog_content.replace("\n", " ").replace("; ", ";\n").replace("endmodule ", "endmodule\n").replace("( ", "(").replace(" )", ")").replace("//", "\n//").replace("- ", "\n\n")
-f1 = open("ccc.sv", "w")
-f1.write(verilog_content)
+verilog_content = verilog_content.replace("\n", " ").replace("; ", ";\n").replace("endmodule ", "endmodule\n").replace("( ", "(").replace(" )", ")")
 port_split = verilog_content.split("\n")
 
 module_split = verilog_content.split("endmodule")
 
 f2 = open("rt_qos_controller_netlist_cgtmr.sv", "w")
 f3 = open("rt_qos_controller_netlist_fgdtmr.sv", "w")
+
 top_module = "rt_qos_controller"
 
 def CGTMR():
+  f2.write(voter_content)
   for module in module_split[:-1]:
     internal_signal = find_words_after("wire", module)
     output_signal = find_words_after("output", module)
@@ -213,10 +256,13 @@ def CGTMR():
   f2.close()
 
 def FGDTMR():
+  f3.write(voter_content)
   for module in module_split[:-1]:
     internal_signal = find_words_after("wire", module)
     output_signal = find_words_after("output", module)
+    check_first = 0
     if(instances_info(module)[1] == top_module):
+      check_first = 0
       for line in module.split("\n")[0:-1]:
         # print(line)
         if(first_word(line) == "module" or first_word(line) == "input" or first_word(line) == "output"):
@@ -237,23 +283,67 @@ def FGDTMR():
       f3.write("endmodule\n\n")
 
     else:
-      for line in module.split("\n")[0:-1]:
+      q_port = find_q_port(module)
+      # print("aaasdsds", q_port[1])
+      q_dict = q_port_dict(q_port[1])
+      write_first = 1
+      for line in module.split("\n")[:-1]:
+         
           if(first_word(line) == "module"):
             f3.write(add_port(line, output_signal) + "\n")
           elif (first_word(line) == "input"):
-            f3.write(line + '\n')      
+            f3.write(line + '\n')     
           else:
+            if(first_word(line) == "wire"):
+              if(write_first):
+                for strr in q_dict[1]:
+                   f3.write("wire " + strr + ";\n")
+                write_first = 0
+            text = ""
             for i in range(3):
-              f3.write(replace_tmr(line, output_signal + internal_signal, i) + '\n')
-      for i in range(3):
-        insert_voter(output_signal, f3, "_" + str(i))
+              try:
+                if (first_word(line)[:10] == 'dti_12g_ff'):
+                  text = (replace_tmr(line, output_signal + internal_signal, i) + '\n')
+                  q_port = find_q_port(text)[0]
+                  text = text.replace( q_port, add_suffix(q_port, "q"))
+                  # print(q_port)
+                else:
+                  text = replace_tmr(line, output_signal + internal_signal, i) + '\n'
+              except:
+                text = replace_tmr(line, output_signal + internal_signal, i) + '\n' 
+                pass
+                
+              f3.write(text)
+      # try:
+        # for port in q_port:
+        # for q in q_dict[0]:
+      voter_index = 0
+      for key, value in q_dict[0].items():
+        for i in range(3):
+          if(value == 0):
+            f3.write(inst_voter
+              .replace("b_0", add_suffix(key, "0_q"))
+              .replace("b_1", add_suffix(key, "1_q"))
+              .replace("b_2", add_suffix(key, "2_q"))
+              .replace("b", add_suffix(key, str(i)))
+              .replace("voter_inst", "voter_" + str(voter_index)) + "\n")
+            voter_index = voter_index + 1
+          else:
+            for j in range(value):
+              f3.write(inst_voter
+                .replace("b_0", add_suffix(key + "[" + str(j) + "]", "0_q"))
+                .replace("b_1", add_suffix(key + "[" + str(j) + "]", "1_q"))
+                .replace("b_2", add_suffix(key + "[" + str(j) + "]", "2_q"))
+                .replace("b", add_suffix(key + "[" + str(j) + "]", str(i)))
+                .replace("voter_inst", "voter_" + str(voter_index)) + "\n")
+              voter_index = voter_index + 1
       f3.write("endmodule\n\n")
-  f2.close()
+  f3.close()
 
 def FGLTMR():
   f = open("rt_qos_controller_netlist_fgltmr.sv", "w")
+  f.write(voter_content)
   voter_index = 0
-  module_index = -1 
   for module in module_split:
     mark_voter = 0
     q_port_list = find_q_port(module)[-1]
@@ -295,6 +385,58 @@ def FGLTMR():
   f.close()
 
 CGTMR()
-# FGLTMR()
-
+FGLTMR()
 FGDTMR()
+
+def remove_first_comment_lines(input_code):
+    lines = input_code.split('\n')
+    comment_found = False
+
+    line_n0 = 0
+
+    for i, line in enumerate(lines):
+        if '//' in line:
+            comment_found = True
+            lines[i] = '' 
+            line_n0 = i
+        elif not line.strip() and comment_found:
+            lines[i] = '' 
+        elif comment_found:
+            break  
+    return '\n'.join(lines)[line_n0 + 2:]
+# Example usage
+input_code = """
+//-----------------------------------------------------------------------------------------------------------
+// Copyright (C) 2023 by Dolphin Technology
+// All right reserved.
+//
+// Copyright Notification
+// No part may be reproduced except as authorized by written permission.
+//
+// Module: rt_qos_controller
+// Company: Dolphin Technology
+// Author: tung
+// Date: 2023/07/11
+//-----------------------------------------------------------------------------------------------------------
+
+module rt_dyn_pri_fsm ( acq_thresh_hi, acq_thresh_lo, clk, reset_n, dyn_pri, 
+        dyn_update );
+  input acq_thresh_hi, acq_thresh_lo, clk, reset_n;
+  output dyn_pri, dyn_update;
+  wire   \current_state[0] , \next_state[0] , n2, n1, n3, n4;
+  assign dyn_pri = \current_state[0] ;
+
+  dti_12g_ffqa01x1 \current_state_reg[0]  ( .D(\next_state[0] ), .CK(clk), 
+        .RN(reset_n), .Q(\current_state[0] ) );
+  dti_12g_ffqa11x1 dyn_update_cld_reg ( .D(n2), .CK(clk), .RN(reset_n), .SN(n1), .Q(dyn_update) );
+  dti_12g_tierailx1 U3 ( .HI(n1) );
+  dti_12g_muxi21xp5 U4 ( .D0(n3), .D1(acq_thresh_lo), .S(\current_state[0] ), 
+        .Z(\next_state[0] ) );
+  dti_12g_nor2xp13 U5 ( .A(n4), .B(\current_state[0] ), .Z(n2) );
+  dti_12g_nor2xp13 U6 ( .A(dyn_update), .B(acq_thresh_hi), .Z(n4) );
+  dti_12g_invxp5 U7 ( .A(acq_thresh_hi), .Z(n3) );
+endmodule
+"""
+
+result_code = remove_first_comment_lines(input_code)
+print(result_code)
