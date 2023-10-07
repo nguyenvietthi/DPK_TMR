@@ -90,9 +90,9 @@ def replace_tmr(text, signal_list, index):
   inst_info = instances_info(text)
   # print(signal_list)
   try:
-    if (first_word(text) != "assign" and first_word(text) != "output" and first_word(text) != "wire"): 
+    if (first_word(text) != "assign" and first_word(text) != "output" and first_word(text) != "wire" and first_word(text) != "input"): 
       replace_txt = text.replace(inst_info[1], add_suffix(inst_info[1], index))
-    elif (first_word(text) == "output"):
+    elif (first_word(text) == "output" or first_word(text) == "input"):
        replace_txt = text
     else:
        replace_txt = text
@@ -132,11 +132,22 @@ def add_port(text, output_port):
 
 def modify_inst(text, signal_list):
   port_inst = text.split(", .")
-  out_txt = port_inst[0]
-  for port in port_inst[1:]:
+  print(port_inst)
+  port_inst_0_split = port_inst[0].split(".")
+  print("cccccccc", port_inst_0_split)
+  
+  out_txt = port_inst_0_split[0]
+
+  print("Sssssssssssssssss", port_inst_0_split[1] , "|||||||", port_inst[1:])
+
+  port_inst[0] = port_inst_0_split[1]
+
+  for port in port_inst:
+    print("xxxxxxx", port)
     port_tmp = port.replace("(", " ").replace(".", "").replace(")", "").replace(";", "").split(" ")
     if(len(port_tmp) > 1):
       check = 0
+      print("sldlsadlasdlsad", signal_list)
       for signal in signal_list:
         if port_tmp[1] in signal:
           check = 1
@@ -149,7 +160,7 @@ def modify_inst(text, signal_list):
         
   out_txt = out_txt + " );\n"
   # print(out_txt)
-  return out_txt
+  return out_txt.replace("(,", "(")
 
 def insert_voter(output_list, f, index): 
     # print(output_list)
@@ -241,6 +252,7 @@ def CGTMR():
   for module in module_split[:-1]:
     internal_signal = find_words_after("wire", module)
     output_signal = find_words_after("output", module)
+    input_signal = find_words_after("input", module)
     if(instances_info(module)[1] == top_module):
       for line in module.split("\n")[0:-1]:
         # print(line)
@@ -252,11 +264,20 @@ def CGTMR():
           for port in output_signal:
             for i in range(3):
               f2.write(("wire " + port + "_" + str(i) + " ;\n").replace(")", " )"))
+          for port in input_signal:
+            for i in range(3):
+              f2.write(("wire " + port + "_" + str(i) + " ;\n").replace(")", " )"))
+          for input in input_signal:
+            for i in range(3):
+              try:
+                f2.write("assign " + add_suffix(input.split(" ")[1], i) + " = " + input.split(" ")[1] + " ;\n")
+              except:
+                 f2.write("assign " + add_suffix(input, i) + " = " + input + " ;\n")
         elif (line[:7] == "dti_12g"):
             for i in range(3):
-              f2.write((replace_tmr(line, output_signal + internal_signal, i) + '\n').replace(")", " )"))
+              f2.write((replace_tmr(line, output_signal + internal_signal + input_signal, i) + '\n').replace(")", " )"))
         elif (line != ""):
-          f2.write((modify_inst(line, internal_signal + output_signal)).replace(")", " )"))
+          f2.write((modify_inst(line, internal_signal + output_signal + input_signal)).replace(")", " )"))
       
       insert_voter(output_signal, f2, "")
       f2.write("endmodule\n\n")
@@ -264,12 +285,10 @@ def CGTMR():
     else:
       for line in module.split("\n")[0:-1]:
           if(first_word(line) == "module"):
-            f2.write((add_port(line, output_signal) + "\n").replace(")", " )"))
-          elif (first_word(line) == "input"):
-            f2.write((line + '\n').replace(")", " )")    )  
+            f2.write((add_port(line, output_signal + input_signal) + "\n").replace(")", " )"))
           else:
             for i in range(3):
-              f2.write((replace_tmr(line, output_signal + internal_signal, i) + '\n').replace(")", " )"))
+              f2.write((replace_tmr(line, output_signal + internal_signal + input_signal, i) + '\n').replace(")", " )"))
       f2.write("endmodule\n\n")
   f2.close()
 
@@ -278,6 +297,7 @@ def FGDTMR():
   for module in module_split[:-1]:
     internal_signal = find_words_after("wire", module)
     output_signal = find_words_after("output", module)
+    input_signal = find_words_after("input", module)
     check_first = 0
     if(instances_info(module)[1] == top_module):
       check_first = 0
@@ -291,11 +311,20 @@ def FGDTMR():
           for port in output_signal:
             for i in range(3):
               f3.write(("wire " + port + "_" + str(i) + " ;\n").replace(")", " )"))
+          for port in input_signal:
+            for i in range(3):
+              f3.write(("wire " + port + "_" + str(i) + " ;\n").replace(")", " )"))
+          for input in input_signal:
+            for i in range(3):
+              try:
+                f3.write("assign " + add_suffix(input.split(" ")[1], i) + " = " + input.split(" ")[1] + " ;\n")
+              except:
+                 f3.write("assign " + add_suffix(input, i) + " = " + input + " ;\n")
         elif (line[:7] == "dti_12g"):
             for i in range(3):
-              f3.write((replace_tmr(line, output_signal + internal_signal, i) + '\n').replace(")", " )"))
+              f3.write((replace_tmr(line, output_signal + internal_signal + input_signal, i) + '\n').replace(")", " )"))
         elif (line != ""):
-          f3.write((modify_inst(line, internal_signal + output_signal)).replace(")", " )"))
+          f3.write((modify_inst(line, internal_signal + output_signal + input_signal)).replace(")", " )"))
       
       insert_voter(output_signal, f3, "")
       f3.write("endmodule\n\n")
@@ -308,9 +337,7 @@ def FGDTMR():
       for line in module.split("\n")[:-1]:
          
           if(first_word(line) == "module"):
-            f3.write((add_port(line, output_signal) + "\n").replace(")", " )"))
-          elif (first_word(line) == "input"):
-            f3.write((line + '\n').replace(")", " )"))    
+            f3.write((add_port(line, output_signal + input_signal) + "\n").replace(")", " )"))
           else:
             if(first_word(line) == "wire"):
               if(write_first):
@@ -321,14 +348,14 @@ def FGDTMR():
             for i in range(3):
               try:
                 if (first_word(line)[:10] == 'dti_12g_ff'):
-                  text = (replace_tmr(line, output_signal + internal_signal, i) + '\n')
+                  text = (replace_tmr(line, output_signal + internal_signal + input_signal, i) + '\n')
                   q_port = find_q_port(text)[0]
                   text = text.replace( q_port, add_suffix(q_port, "q"))
                   # print(q_port)
                 else:
-                  text = replace_tmr(line, output_signal + internal_signal, i) + '\n'
+                  text = replace_tmr(line, output_signal + internal_signal + input_signal, i) + '\n'
               except:
-                text = replace_tmr(line, output_signal + internal_signal, i) + '\n' 
+                text = replace_tmr(line, output_signal + internal_signal + input_signal, i) + '\n' 
                 pass
                 
               f3.write((text).replace(")", " )"))
