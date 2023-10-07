@@ -1,0 +1,1 @@
+python insert_tmr.py -t rt_qos_controller -v rt_qos_controller_netlist.v -o fgdtmr
